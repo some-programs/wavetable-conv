@@ -40,8 +40,8 @@ func process() {
 		out := filepath.Join(outRoot, path)
 		_ = os.MkdirAll(filepath.Dir(out), 0700)
 
-		log.Println("start processing")
 		log.SetPrefix(path + " ")
+		log.Println("start processing")
 
 		err = multiply(in, suffix(out, "_m"))
 		if err != nil {
@@ -49,6 +49,11 @@ func process() {
 		}
 
 		err = resamp(in, suffix(out, "_r"))
+		if err != nil {
+			return err
+		}
+
+		err = resampWhole(in, suffix(out, "_w"))
 		if err != nil {
 			return err
 		}
@@ -187,6 +192,107 @@ func resamp(inName, outName string) error {
 			return err
 		}
 	}
+	// log.Println("wav-out")
+	// spew.Dump(writer.Format)
+
+	return nil
+
+}
+
+func resampWhole(inName, outName string) error {
+	f, err := os.Open(inName)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	reader := wav.NewReader(f)
+	format, err := reader.Format()
+	if err != nil {
+		return err
+	}
+
+	// log.Println("wav-in")
+	// log.Println(spew.Sdump(format))
+
+	var samples []wav.Sample
+	for {
+
+		ss, err := reader.ReadSamples()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		samples = append(samples, ss...)
+
+	}
+
+	// log.Println("samples len", len(samples))
+
+	if len(samples) != 16384 {
+		log.Fatalln("unexpected wave file length", len(samples))
+	}
+
+	var sampleBytes []byte
+	enc := binary.LittleEndian
+	for wfi := 0; wfi < len(samples); wfi++ {
+		s := samples[wfi]
+		bs := make([]byte, 8)
+		enc.PutUint64(bs, uint64(s.Values[0]))
+		bs = bs[:(format.BitsPerSample / 8)]
+		sampleBytes = append(sampleBytes, bs...)
+	}
+
+	var resampled []byte
+	{
+		var b bytes.Buffer
+		res, err := resample.New(
+			&b,
+			float64(format.SampleRate),
+			float64(format.SampleRate*4),
+			1,
+			resample.I16,
+			resample.VeryHighQ,
+		)
+		if err != nil {
+			return err
+		}
+
+		{
+			_, err := res.Write(sampleBytes)
+			if err != nil {
+				return err
+			}
+		}
+
+		res.Close()
+		resampled = b.Bytes()
+	}
+
+	outf, err := os.OpenFile(outName, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer outf.Close()
+
+	writer := wav.NewWriter(
+		outf,
+		uint32(len(samples)*4),
+		// numSamples uint32,
+		format.NumChannels,
+		format.SampleRate,
+		format.BitsPerSample,
+	)
+
+	{
+		_, err := writer.Write(resampled)
+		if err != nil {
+			return err
+		}
+	}
+
 	// log.Println("wav-out")
 	// spew.Dump(writer.Format)
 

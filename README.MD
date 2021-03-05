@@ -14,19 +14,31 @@ other uses cases.
 
 ## Tool Output files
 
-Two output files are generated for each input:
 
-Suffix _m : Each sample is multiplied by 4, no resampling.
-
-Suffix _r: Reasampled using libsoxr's highest quality mode.
+Three output files are generated for each input.
 
 Some times the multiplied wavetables sounds more interesting and some times
 they are just nice lofi alternatives to the resampled ones.
+
+### Suffix _m
+
+Each sample is multiplied by 4, no resampling.
+
+### Suffix _r
+
+Resampled individual waveforms using libsoxr's highest quality preset.
+
+This means means that there is no interpolation done at individual waveform edges.
+
+### Suffix _w
+
+Reasampled the whole wavefile in one go using libsoxr's highest quality mode.
+
+This means that different waveforms can bleed into eachother which is something
+that you might want if the wavefile is just a straight up sample.
 
 ## Directories
 
 /waveeditonline/ : just a copy of files from https://waveeditonline.com/
 
 /ableton-wavetable/ : output files to use with Ableton Wavetable (make sure to click the RAW button)
-
-
